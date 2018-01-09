@@ -1,94 +1,91 @@
 package webserver;
 
 import java.io.BufferedReader;
-import java.io.DataInputStream;
 import java.io.DataOutputStream;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.Socket;
+import java.nio.file.Files;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /*
-     [1단계 요구사항]
-     - localhost/index.html 요청했을 때 webapp/index.html 파일로 응답해
+    [1단계 요구사항]
+    - localhost/index.html 요청했을 때 webapp/index.html 파일로 응답해    
+    - 읽는다 -> 읽은 요청을 찬찬히 살펴본다(결과를 받아와야해 결과는 어떤 형식이지? 응답하는걸 보자) -> 그에 맞게 응답해준다.    
  */
+
 public class RequestHandler extends Thread {
     private static final Logger log = LoggerFactory.getLogger(RequestHandler.class);
-
-    //소켓, input/outputstream 관리를 따로해줘야할까?
     private Socket connection;
-
+       
     public RequestHandler(Socket connectionSocket) {
         this.connection = connectionSocket;
     }
 
-       
     public void run() {
         log.debug("New Client Connect! Connected IP : {}, Port : {}", connection.getInetAddress(), connection.getPort());
+        
 
-        try (InputStream in = connection.getInputStream(); OutputStream out = connection.getOutputStream()) {            
+        try (InputStream in = connection.getInputStream(); OutputStream out = connection.getOutputStream()) {
+            // TODO 사용자 요청에 대한 처리는 이 곳에 구현하면 된다.
+                                         
+            /*********** Request Process ***********/
+            BufferedReader br = new BufferedReader(new InputStreamReader(in));
+            String requestLine = br.readLine(); // 요청라인(URI) : GET /index.html HTTP/1.1
+            String[] requestLineTokens = requestLine.split(" ");                 
             
-            readRequest(new BufferedReader(new InputStreamReader(in)));
-            sendResponse();
+            //requestLine 확인해보기
+            log.debug("==============================");
+            log.debug("request line : {} ", requestLine);
+            log.debug("==============================");
             
-                                    
-            /* 응답부분도 하나로 묶기 */
-            DataOutputStream dos = new DataOutputStream(out);            
-            byte[] body = "안녕하세요".getBytes();
+            
+            if(isInvaildRequestLine(requestLine)) {
+                log.debug("연결종료 : 잘못된 요청");
+                disconnect(connection);
+            }
+            
+            String requestMessage = null;
+            while(!isEndOfRequest(requestMessage = br.readLine())) {
+                log.debug("header : {} ", requestMessage);
+            }
+
+            
+            /*********** Response Process ***********/    
+            DataOutputStream dos = new DataOutputStream(out);
+            byte[] body = Files.readAllBytes(new File("./webapp"+ requestLineTokens[1]).toPath());
             response200Header(dos, body.length);
-            responseBody(dos, body);
-                 
-            /* 
-            HTTP : 통신하고 닫아주고 자원 반납하고 (소켓 유지하지않고), 쓰레드는 작업 처리이후 소멸            
-            요청할 때마다 새로운 클라이언트(http / 소켓통신이랑은 다름)           
-            어떤 요청에도 안녕하세요만 응답 : 읽기는? 연결만되면 그냥 되게끔인가... 
-             */
-            disconnect(in, out);
+            responseBody(dos, body);  
+            
             
         } catch (IOException e) {
             log.error(e.getMessage());
-        } 
+        }
     }
     
-    private void disconnect(InputStream in, OutputStream out) {
+    private void disconnect(Socket connection) {
         try {
-            in.close();
-            out.close();
-            connection.close();
-        } catch(IOException e) {
-            log.info(e.getMessage());
-        }        
-    }
-    
-    
-    /**************** REQUEST_PROCESS ****************/
-    private void readRequest(BufferedReader br) {
-        try {
-            String line = null;            
-            while(isContinueHTTP(line = br.readLine())) {
-                log.info(line);
-            }                                    
+            connection.getInputStream().close();
+            connection.getOutputStream().close();
         } catch(IOException e) {
             log.error(e.getMessage());
         }        
     }
     
-    private boolean isContinueHTTP(String line) {
-        //HTTP EOF : 빈 라인 출력됨
-        return !line.equals("");
+    private boolean isInvaildRequestLine(String requestLine) {
+        return requestLine.isEmpty() || requestLine == null;
     }
     
-    
-    /***************** RESPONSE_PROCESS *****************/
-    private void sendResponse() {
-        
+    private boolean isEndOfRequest(String requestMessage) {
+        return requestMessage.isEmpty();
     }
+           
 
-    //200만 있는게 아니라서 상태에 따라 처리하도록 해야할 것 같음
     private void response200Header(DataOutputStream dos, int lengthOfBodyContent) {
         try {
             dos.writeBytes("HTTP/1.1 200 OK \r\n");
@@ -99,7 +96,7 @@ public class RequestHandler extends Thread {
             log.error(e.getMessage());
         }
     }
- 
+
     private void responseBody(DataOutputStream dos, byte[] body) {
         try {
             dos.write(body, 0, body.length);
@@ -108,4 +105,9 @@ public class RequestHandler extends Thread {
             log.error(e.getMessage());
         }
     }
+    
+}
+
+enum ResponeseState{
+    
 }

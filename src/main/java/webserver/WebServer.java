@@ -24,6 +24,7 @@ public class WebServer {
             //socket for client
             Socket connection;  
             while ((connection = listenSocket.accept()) != null) {
+                //요청마다
                 RequestHandler requestHandler = new RequestHandler(connection);
                 requestHandler.start();
             }
