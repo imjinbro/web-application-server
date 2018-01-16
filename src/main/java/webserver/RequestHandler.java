@@ -15,12 +15,15 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import db.DataBase;
+import http.HttpConnector;
+import http.HttpRequest;
+import http.HttpResponse;
 import model.User;
 import util.HttpRequestUtils;
 import util.IOUtils;
 
 /*
-     [로그인 과정으로 알아보는 HTTP..................... 요구사항] : HTTP 요청 - 응답 프로토콜 구성, HTTP 메서드, redirect, 포맷, 쿠키 
+     [구현된 것] 
      (1) url에 따라 처리
      (2) 쿼리스트링 처리
      (3) GET, POST 각각 처리 
@@ -30,22 +33,96 @@ import util.IOUtils;
      (7) 요청에 맞는 콘텐츠 타입 응답 : 현재 고정된 text/html 타입으로 응답헤더 구성
      
      
-     [문제점] 
-     - 처리할 페이지 혹은 액션이 늘어날 때마다 if ~ else if 혹은 switch문을 추가해야함 : 변경사항이 생길 때마다 요동치는 코드
-     - 그냥 리팩토링 해야할게 천지다....... 
+     [문제점 찾기] 
+     (1) RequestHandler 역할
+     - 쓰레드
+     - 소켓 관리
+     - 요청, 응답처리
+     - 유저 생성
+     
+     (2) 요청이라는 큰 틀은 같지만 세부적인 내용이 다르다고해서 같은 인터페이스로 처리하지않고 if ~ else 로 분기
+     - 요청의 형태가 달라지거나 요청 종류가 많아지면 if ~ else 혹은 switch 혹은 코드 자체가 달라질 수 있음 
+     
+     (3) 응답도 마찬가지로 응답코드 대응에 따라 메서드가 증가 
+     - 지금은 200, 302만 하지만 404, 500과 같은 응답코드에 대한 처리가 없으니 지금 코드라면 메서드가 더 늘어날 예정
+     
+         
+     [잊지말기]
+     - 브랜치 체크아웃 전에 커밋하거나 stash 해야 브랜치 코드 혼선 안일으킴 
+     - 모든 예외 한 곳에서 처리하기 : 메세지만 따로 던지고 핸들러에서 한꺼번에
  */
 
 public class RequestHandler extends Thread {
     private static final Logger log = LoggerFactory.getLogger(RequestHandler.class);
+    
+    /*** 없어질 코드 ***/
     private Socket connection;
-       
-    public RequestHandler(Socket connectionSocket) {
-        this.connection = connectionSocket;
+    
+    private HttpConnector connector;
+    
+    private HttpRequest request;
+    private HttpResponse response;
+    
+
+    public RequestHandler(Socket connectionSocket) { 
+        if(isInvalidConnection(connectionSocket)) {
+            return;
+        }        
+        connector = new HttpConnector(connectionSocket);
+    }
+    
+    private boolean isInvalidConnection(Socket connection) {
+        return connection == null;
+    }
+    
+    private void setHttp(HttpConnector connector) {
+        request = new HttpRequest(connector.getInput());
+        response = new HttpResponse(connector.getOutput());
+    }
+    
+    private HttpConnector getHttpConnector() {
+        return connector;
     }
 
+    
+    
+    /************* 쓰레드 영역 *************/
     public void run() {
-        log.debug("New Client Connect! Connected IP : {}, Port : {}", connection.getInetAddress(), connection.getPort());
+        setHttp(getHttpConnector());
         
+        /* 여기 부분도 만들고 난 뒤 메서드로 처리
+         * 연결정보를 가져온다 -> 읽는다(요청라인,요청헤더,구분줄,요청바디) -> 응답한다 
+         * 필요한 요청라인, 헤더, 바디를 가지고 올 수 있음
+         * 응답하기 : 리턴으로 모드 가져오기 할까
+         */ 
+        try {
+            request.readRequest();
+            
+            
+            
+            
+        } catch (IOException e) {
+            log.error(e.getMessage()); 
+            connector.disconnect();                       
+        }
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        /********************* 이 밑으로는 여기서 없어질 코드 *********************/
         try (InputStream in = connection.getInputStream(); OutputStream out = connection.getOutputStream()) {
             // TODO 사용자 요청에 대한 처리는 이 곳에 구현하면 된다.
                                          
@@ -53,9 +130,7 @@ public class RequestHandler extends Thread {
             BufferedReader br = new BufferedReader(new InputStreamReader(in, "UTF-8"));
             String requestLine = br.readLine();
            
-            if(isInvaildRequestLine(requestLine)) {                     
-                disconnect(connection);
-            }
+            
                       
             String[] splitedRequestLine = splitString(requestLine, " "); 
             String url = splitedRequestLine[1];
@@ -66,20 +141,9 @@ public class RequestHandler extends Thread {
             String contentType = null;
             int contentLength = 0;
             boolean isLogined = false;
+                       
             
-            while(!isEndOfHeader(requestHeader = br.readLine())) {      
-                if(isCookie(requestHeader)) {
-                    isLogined = getCookie(requestHeader, "logined");
-                }
-                
-                if(isContentType(requestHeader)) {
-                    contentType = getContentType(requestHeader);
-                }
-                
-                if(isContentLength(requestHeader)) {
-                    contentLength = getContentLength(requestHeader);
-                }
-            }
+            
             
             
             DataOutputStream dos = new DataOutputStream(out);
@@ -118,16 +182,7 @@ public class RequestHandler extends Thread {
             log.error(e.getMessage());
         }
     }   
-    
-
-    /**** HTTP ****/
-    private boolean isInvaildRequestLine(String requestLine) {        
-        return requestLine.isEmpty() || requestLine == null;
-    }
-    
-    private boolean isEndOfHeader(String requestHeader) {
-        return requestHeader.equals("");
-    }
+   
     
     
     /**** RESPONSE ****/
@@ -180,7 +235,7 @@ public class RequestHandler extends Thread {
     
     
     
-    /**** GET, POST ****/
+    /**** Request : GET, POST ****/
     private boolean isCookie(String requestHeader) {
         return requestHeader.contains("Cookie");
     }

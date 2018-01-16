@@ -1,5 +1,6 @@
 package util;
 
+import java.io.InputStream;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -105,5 +106,29 @@ public class HttpRequestUtils {
         public String toString() {
             return "Pair [key=" + key + ", value=" + value + "]";
         }
+    }
+    
+    
+    
+    public static String[] splitRequestLine(String requestLine, String separator) {
+        return requestLine.split(separator);
+    }
+                   
+    
+    public static int strToInt(String numStr) {
+        if(isInvalidFormat(numStr)) {
+            throw new NumberFormatException();
+        }        
+        return Integer.parseInt(numStr);
+    }
+    
+    public static boolean isInvalidFormat(String numStr) {
+        char[] str = numStr.toCharArray();
+        for(char c : str) {
+            if(c < '0' || c > '9') {
+                return true;
+            }
+        }        
+        return false;
     }
 }
