@@ -1,6 +1,5 @@
 package util;
 
-import java.io.InputStream;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -16,6 +15,10 @@ public class HttpRequestUtils {
      */
     public static Map<String, String> parseQueryString(String queryString) {
         return parseValues(queryString, "&");
+    }
+    
+    public static String getQueryString(String path) {
+        return path.split("?")[1];
     }
 
     /**

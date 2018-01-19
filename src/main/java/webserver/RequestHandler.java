@@ -16,8 +16,8 @@ import org.slf4j.LoggerFactory;
 
 import db.DataBase;
 import http.HttpConnector;
-import http.HttpRequest;
-import http.HttpResponse;
+import http.request.HttpRequest;
+import http.response.HttpResponse;
 import model.User;
 import util.HttpRequestUtils;
 import util.IOUtils;
@@ -74,11 +74,7 @@ public class RequestHandler extends Thread {
     private boolean isInvalidConnection(Socket connection) {
         return connection == null;
     }
-    
-    private void setHttp(HttpConnector connector) {
-        request = new HttpRequest(connector.getInput());
-        response = new HttpResponse(connector.getOutput());
-    }
+       
     
     private HttpConnector getHttpConnector() {
         return connector;
@@ -87,8 +83,7 @@ public class RequestHandler extends Thread {
     
     
     /************* 쓰레드 영역 *************/
-    public void run() {
-        setHttp(getHttpConnector());
+    public void run() {        
         
         /* 여기 부분도 만들고 난 뒤 메서드로 처리
          * 연결정보를 가져온다 -> 읽는다(요청라인,요청헤더,구분줄,요청바디) -> 응답한다 
@@ -96,10 +91,7 @@ public class RequestHandler extends Thread {
          * 응답하기 : 리턴으로 모드 가져오기 할까
          */ 
         try {
-            request.readRequest();
-            
-            
-            
+            request = new HttpRequest(connector.getInput());            
             
         } catch (IOException e) {
             log.error(e.getMessage()); 
